@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -25,6 +25,25 @@ export default function SignIn() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard"
+  const errorParam = searchParams.get("error")
+
+  useEffect(() => {
+    if (errorParam === "EmailTaken") {
+      setError("This email is already registered with a password. Please sign in using email and password.")
+    } else if (errorParam === "OAuthAccountNotLinked") {
+      setError("This email is already linked with another login method.")
+    } else if (errorParam === "AccessDenied") {
+      setError("Access denied. Please try again.")
+    }
+  }, [errorParam])
+
+  useEffect(() => {
+    if (errorParam) {
+      const params = new URLSearchParams(window.location.search)
+      params.delete("error")
+      router.replace(`/auth/signin?${params.toString()}`, { scroll: false })
+    }
+  }, [errorParam])
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,7 +57,9 @@ export default function SignIn() {
         redirect: false,
       })
 
-      if (result?.error) {
+      if (result?.error === "OAuthAccountNotLinked") {
+        setError("This email is linked with a different login method.")
+      } else if (result?.error) {
         setError("Invalid email or password")
       } else {
         router.push(callbackUrl)

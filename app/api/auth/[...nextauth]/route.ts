@@ -4,6 +4,7 @@ import GoogleProvider from "next-auth/providers/google"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { createClient } from "@supabase/supabase-js"
 import bcrypt from "bcryptjs"
+import SignIn from "@/app/auth/signin/page"
 
 // Ensure environment variables are available
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -44,16 +45,19 @@ export const authOptions: NextAuthOptions = {
             .eq("email", credentials.email.toLowerCase())
             .single()
 
-          if (error || !user) {
-            throw new Error("Invalid credentials")
-          }
+            if (error && error.code !== "PGRST116") {
+              console.error("Supabase error:", error)
+              throw new Error("Authentication failed")
+            }
 
-          // Check if user has a password (for credential-based accounts)
-          if (!user.password_hash) {
-            throw new Error("Please sign in with Google or reset your password")
-          }
+            if (!user) {
+              throw new Error("Invalid credentials")
+            }
+            
+            if (user.auth_provider === "google") {
+              throw new Error("OAuthAccountNotLinked")
+            }
 
-          // Verify password
           const isPasswordValid = await bcrypt.compare(credentials.password, user.password_hash)
 
           if (!isPasswordValid) {
@@ -72,9 +76,9 @@ export const authOptions: NextAuthOptions = {
             emailVerified: user.email_verified,
           }
         } catch (error) {
-          console.error("Auth error:", error)
-          throw new Error("Authentication failed")
-        }
+            console.error("Auth error:", error)
+            throw error
+          }
       },
     }),
   ],
@@ -86,12 +90,17 @@ export const authOptions: NextAuthOptions = {
           const { data: existingUser, error: fetchError } = await supabase
             .from("users")
             .select("*")
-            .eq("email", user.email)
+            .eq("email", user.email.toLowerCase())
             .single()
 
           if (fetchError && fetchError.code !== "PGRST116") {
             console.error("Database error:", fetchError)
             return false
+          }
+
+          if (existingUser && existingUser.auth_provider === "credentials"){
+            console.error("Email already in use with credentials.")
+            return "/auth/signin?error=EmailTaken"
           }
 
           if (!existingUser) {
@@ -121,7 +130,7 @@ export const authOptions: NextAuthOptions = {
                 avatar_url: user.image,
                 email_verified: true,
               })
-              .eq("email", user.email)
+              .eq("email", user.email.toLowerCase())
 
             if (updateError) {
               console.error("Error updating user:", updateError)
@@ -160,7 +169,7 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: "/auth/signin",
-    error: "/auth/error",
+    error: "/auth/signin",
   },
   session: {
     strategy: "jwt",

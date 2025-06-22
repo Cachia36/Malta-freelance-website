@@ -45,6 +45,7 @@ export default function SignUp() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [acceptTerms, setAcceptTerms] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [created, setCreated] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
@@ -80,6 +81,7 @@ export default function SignUp() {
   }
 
   const handleEmailSignUp = async (e: React.FormEvent) => {
+    if (loading) return // prevent double submit
     e.preventDefault()
     setError("")
     setSuccess("")
@@ -108,14 +110,15 @@ export default function SignUp() {
             callbackUrl: "/dashboard",
           })
         }, 2000)
+        setLoading(false)
+        setCreated(true)
       } else {
         setError(result.error || "Registration failed")
       }
     } catch (err) {
       setError("An unexpected error occurred")
-    } finally {
       setLoading(false)
-    }
+    } 
   }
 
   const handleGoogleSignUp = async () => {
@@ -336,8 +339,12 @@ export default function SignUp() {
                 </Label>
               </div>
 
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Creating account..." : "Create Account"}
+              <Button type="submit" className="w-full" disabled={loading || created}>
+                {loading 
+                ? "Creating account..." 
+                : created
+                ? "Redirecting..."
+                : "Create Account"}
               </Button>
             </form>
 

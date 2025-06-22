@@ -2,34 +2,44 @@ import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import bcrypt from "bcryptjs"
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
 export async function POST(request: NextRequest) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("Missing Supabase credentials:", { supabaseUrl, supabaseKey })
+    return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 })
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey)
+
   try {
     const body = await request.json()
     const { email, password, firstName, lastName, location, accountType } = body
 
-    // Validate required fields
     if (!email || !password || !firstName || !lastName) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
+    
+    const normalizedEmail = email.trim().toLowerCase()
 
-    // Check if user already exists
-    const { data: existingUser } = await supabase.from("users").select("email").eq("email", email).single()
+    const { data: existingUser } = await supabase
+      .from("users")
+      .select("email")
+      .eq("email", normalizedEmail)
+      .single()
 
     if (existingUser) {
       return NextResponse.json({ error: "User already exists with this email" }, { status: 400 })
     }
 
-    // Hash password
     const saltRounds = 12
     const passwordHash = await bcrypt.hash(password, saltRounds)
 
-    // Create user
     const { data: newUser, error } = await supabase
       .from("users")
       .insert({
-        email,
+        email: normalizedEmail,
         password_hash: passwordHash,
         first_name: firstName,
         last_name: lastName,
@@ -48,8 +58,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to create user" }, { status: 500 })
     }
 
-    // TODO: Send verification email here
-
     return NextResponse.json(
       {
         message: "User created successfully",
@@ -59,7 +67,7 @@ export async function POST(request: NextRequest) {
           name: newUser.full_name,
         },
       },
-      { status: 201 },
+      { status: 201 }
     )
   } catch (error) {
     console.error("Registration error:", error)
